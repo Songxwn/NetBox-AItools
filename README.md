@@ -45,6 +45,14 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+若出现 `No matching distribution found for mcp`，多半是镜像未同步。可改用官方源：
+
+```bash
+pip install -r requirements.txt -i https://pypi.org/simple
+```
+
+或确认 Python ≥ 3.10：`python --version`
+
 ## 配置
 
 复制模板：
@@ -115,8 +123,8 @@ netbox_ai/
 
 ## 常见问题
 
-**连不上 MCP**  
-确认服务已用 `TRANSPORT=http` 启动，URL 带协议且路径为 `/mcp`（必要时试 `/mcp/`）。可在网页「连接设置」里点「仅重连 MCP」。
+**连不上 MCP / 安装报 mcp 找不到**  
+确认 Python ≥ 3.10。若镜像没有包，使用：`pip install -r requirements.txt -i https://pypi.org/simple`。MCP 服务需用 `TRANSPORT=http` 启动，URL 带 `/mcp`。
 
 **AI 返回不了 tool_calls**  
 请使用支持 function calling 的模型；部分本地小模型可能不支持，可换更大模型。

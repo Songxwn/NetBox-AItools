@@ -1,14 +1,10 @@
-"""NetBox MCP 客户端（Streamable HTTP，兼容 mcp SDK 2.x）。"""
+"""NetBox MCP 客户端（Streamable HTTP，兼容 mcp SDK 1.x / 2.x）。"""
 
 from __future__ import annotations
 
 import json
 from contextlib import AsyncExitStack
 from typing import Any
-
-import httpx2
-from mcp import Client
-from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 
 from .config import MCPConfig
 
@@ -46,13 +42,33 @@ def tool_result_to_text(result: Any) -> str:
     return text or "(空结果)"
 
 
+def _detect_sdk() -> str:
+    """返回 'v1' 或 'v2'。"""
+    try:
+        from mcp.client.streamable_http import streamablehttp_client  # noqa: F401
+
+        return "v1"
+    except ImportError:
+        pass
+    try:
+        from mcp.client.streamable_http import streamable_http_client  # noqa: F401
+
+        return "v2"
+    except ImportError as exc:  # pragma: no cover
+        raise ImportError(
+            "未找到可用的 mcp SDK。请安装: pip install 'mcp>=1.9.0,<2'"
+        ) from exc
+
+
 class MCPClient:
     """连接 NetBox MCP 并提供 tools/list、tools/call。"""
 
     def __init__(self, config: MCPConfig) -> None:
         self.config = config
         self._stack: AsyncExitStack | None = None
-        self.client: Client | None = None
+        self._sdk = _detect_sdk()
+        # v1: ClientSession；v2: Client
+        self._session: Any = None
         self._tools: list[dict[str, Any]] = []
 
     async def __aenter__(self) -> MCPClient:
@@ -63,7 +79,7 @@ class MCPClient:
         await self.close()
 
     async def connect(self) -> None:
-        if self.client is not None:
+        if self._session is not None:
             return
 
         headers: dict[str, str] = {}
@@ -73,19 +89,44 @@ class MCPClient:
         stack = AsyncExitStack()
         await stack.__aenter__()
         try:
-            http_client = create_mcp_http_client(
-                headers=headers or None,
-                timeout=httpx2.Timeout(self.config.timeout, read=self.config.sse_read_timeout),
-            )
-            await stack.enter_async_context(http_client)
-            transport = streamable_http_client(self.config.url, http_client=http_client)
-            client = Client(transport, read_timeout_seconds=self.config.sse_read_timeout)
-            self.client = await stack.enter_async_context(client)
+            if self._sdk == "v1":
+                from mcp import ClientSession
+                from mcp.client.streamable_http import streamablehttp_client
+
+                transport = await stack.enter_async_context(
+                    streamablehttp_client(
+                        self.config.url,
+                        headers=headers or None,
+                        timeout=self.config.timeout,
+                        sse_read_timeout=self.config.sse_read_timeout,
+                    )
+                )
+                read, write = transport[0], transport[1]
+                session = await stack.enter_async_context(ClientSession(read, write))
+                await session.initialize()
+                self._session = session
+            else:
+                import httpx2
+                from mcp import Client
+                from mcp.client.streamable_http import (
+                    create_mcp_http_client,
+                    streamable_http_client,
+                )
+
+                http_client = create_mcp_http_client(
+                    headers=headers or None,
+                    timeout=httpx2.Timeout(self.config.timeout, read=self.config.sse_read_timeout),
+                )
+                await stack.enter_async_context(http_client)
+                transport = streamable_http_client(self.config.url, http_client=http_client)
+                client = Client(transport, read_timeout_seconds=self.config.sse_read_timeout)
+                self._session = await stack.enter_async_context(client)
+
             self._stack = stack
             await self.refresh_tools()
         except Exception:
             await stack.aclose()
-            self.client = None
+            self._session = None
             self._stack = None
             raise
 
@@ -93,15 +134,15 @@ class MCPClient:
         if self._stack is not None:
             await self._stack.aclose()
         self._stack = None
-        self.client = None
+        self._session = None
         self._tools = []
 
     async def refresh_tools(self) -> list[dict[str, Any]]:
-        client = self._require_client()
-        result = await client.list_tools()
+        session = self._require_session()
+        result = await session.list_tools()
         tools: list[dict[str, Any]] = []
         for tool in result.tools:
-            schema = getattr(tool, "input_schema", None) or getattr(tool, "inputSchema", None) or {}
+            schema = getattr(tool, "inputSchema", None) or getattr(tool, "input_schema", None) or {}
             tools.append(
                 {
                     "name": tool.name,
@@ -137,11 +178,11 @@ class MCPClient:
         return converted
 
     async def call_tool(self, name: str, arguments: dict[str, Any] | None = None) -> str:
-        client = self._require_client()
-        result = await client.call_tool(name, arguments or {})
+        session = self._require_session()
+        result = await session.call_tool(name, arguments or {})
         return tool_result_to_text(result)
 
-    def _require_client(self) -> Client:
-        if self.client is None:
+    def _require_session(self) -> Any:
+        if self._session is None:
             raise RuntimeError("MCP 尚未连接，请先调用 connect()")
-        return self.client
+        return self._session
