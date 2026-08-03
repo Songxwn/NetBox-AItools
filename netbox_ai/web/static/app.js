@@ -7,9 +7,6 @@
   const btnSend = $("#btnSend");
   const mcpBadge = $("#mcpBadge");
   const modelHint = $("#modelHint");
-  const settingsPanel = $("#settingsPanel");
-  const settingsForm = $("#settingsForm");
-  const settingsStatus = $("#settingsStatus");
 
   let sessionId = localStorage.getItem("netbox_ai_session") || null;
   let busy = false;
@@ -43,99 +40,24 @@
     input.disabled = v;
   }
 
-  function applySettingsToUI(data) {
-    settingsForm.ai_base_url.value = data.ai_base_url || "";
-    settingsForm.ai_model.value = data.ai_model || "";
-    settingsForm.temperature.value = data.temperature ?? 0.2;
-    settingsForm.max_tokens.value = data.max_tokens ?? 4096;
-    settingsForm.mcp_url.value = data.mcp_url || "";
-    settingsForm.max_tool_rounds.value = data.max_tool_rounds ?? 8;
-    settingsForm.ai_api_key.value = "";
-    settingsForm.ai_api_key.placeholder = data.ai_api_key_set
-      ? `已保存（${data.ai_api_key_masked}），留空保持不变`
-      : "请输入 API Key";
-    settingsForm.mcp_token.value = "";
-    settingsForm.mcp_token.placeholder = data.mcp_token_set
-      ? "已保存，留空保持；输入单个空格可清空"
-      : "可选 Bearer Token";
-
+  function applyStatus(data) {
     mcpBadge.textContent = data.mcp_connected
       ? `MCP · 已连接${data.tools?.length ? `（${data.tools.length} 工具）` : ""}`
       : "MCP · 未连接";
     mcpBadge.classList.toggle("ok", !!data.mcp_connected);
-    modelHint.textContent = `${data.ai_model || "未配置模型"} @ ${data.ai_base_url || "-"}`;
+
+    if (!data.ai_configured) {
+      modelHint.textContent = "后台未配置 AI（请检查 .env / config.yaml）";
+    } else {
+      modelHint.textContent = `${data.ai_model || "未配置模型"} @ ${data.ai_base_url || "-"}`;
+    }
   }
 
-  async function loadSettings() {
-    const res = await fetch("/api/settings");
+  async function loadStatus() {
+    const res = await fetch("/api/status");
     const data = await res.json();
-    applySettingsToUI(data);
+    applyStatus(data);
     return data;
-  }
-
-  function openSettings() {
-    settingsPanel.hidden = false;
-    settingsStatus.textContent = "";
-    settingsStatus.className = "settings-status";
-  }
-
-  function closeSettings() {
-    settingsPanel.hidden = true;
-  }
-
-  async function saveSettings(e) {
-    e.preventDefault();
-    settingsStatus.textContent = "保存中…";
-    settingsStatus.className = "settings-status";
-
-    const body = {
-      ai_base_url: settingsForm.ai_base_url.value.trim() || null,
-      ai_model: settingsForm.ai_model.value.trim() || null,
-      mcp_url: settingsForm.mcp_url.value.trim() || null,
-      temperature: Number(settingsForm.temperature.value),
-      max_tokens: Number(settingsForm.max_tokens.value),
-      max_tool_rounds: Number(settingsForm.max_tool_rounds.value),
-    };
-
-    const key = settingsForm.ai_api_key.value;
-    if (key.trim()) body.ai_api_key = key.trim();
-
-    const tokenRaw = settingsForm.mcp_token.value;
-    if (tokenRaw.length > 0) {
-      // 单个空格表示清空
-      body.mcp_token = tokenRaw.trim();
-    }
-
-    try {
-      const res = await fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "保存失败");
-      applySettingsToUI(data);
-      settingsStatus.textContent = data.mcp_connected ? "已保存，MCP 已连接" : "已保存";
-      settingsStatus.className = "settings-status ok";
-    } catch (err) {
-      settingsStatus.textContent = String(err.message || err);
-      settingsStatus.className = "settings-status err";
-    }
-  }
-
-  async function reconnectOnly() {
-    settingsStatus.textContent = "重连中…";
-    try {
-      const res = await fetch("/api/mcp/reconnect", { method: "POST" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.detail || "重连失败");
-      applySettingsToUI(data);
-      settingsStatus.textContent = "MCP 已重连";
-      settingsStatus.className = "settings-status ok";
-    } catch (err) {
-      settingsStatus.textContent = String(err.message || err);
-      settingsStatus.className = "settings-status err";
-    }
   }
 
   async function resetChat() {
@@ -201,6 +123,7 @@
       }
       setBusy(false);
       input.focus();
+      loadStatus().catch(() => {});
     }
   }
 
@@ -268,14 +191,9 @@
     sendMessage(btn.dataset.q);
   });
 
-  $("#btnSettings").addEventListener("click", openSettings);
-  $("#btnCloseSettings").addEventListener("click", closeSettings);
-  $("#drawerBackdrop").addEventListener("click", closeSettings);
   $("#btnReset").addEventListener("click", () => resetChat());
-  settingsForm.addEventListener("submit", saveSettings);
-  $("#btnReconnect").addEventListener("click", reconnectOnly);
 
-  loadSettings().catch((err) => {
-    modelHint.textContent = `设置加载失败: ${err.message || err}`;
+  loadStatus().catch((err) => {
+    modelHint.textContent = `状态加载失败: ${err.message || err}`;
   });
 })();

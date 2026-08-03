@@ -14,16 +14,6 @@ from .config import AppConfig
 from .llm import LLMClient
 from .mcp_client import MCPClient
 
-SYSTEM_PROMPT = """你是 NetBox 基础设施助手，通过 MCP 工具查询 NetBox 中的真实数据。
-
-规则：
-1. 优先使用可用 MCP 工具获取事实，不要编造设备、IP、站点等信息。
-2. 查询时尽量加过滤条件，并在支持时使用 fields 只取必要字段，控制返回体积。
-3. 可多轮调用工具；拿到足够信息后再用简洁中文回答用户。
-4. 若工具返回为空或报错，说明原因并给出可尝试的下一步。
-5. 回答聚焦用户问题，避免大段原始 JSON，必要时可做结构化摘要。
-"""
-
 EventCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
 
 
@@ -41,11 +31,11 @@ class NetBoxAgent:
         self.llm = llm
         self.console = console or Console(quiet=True)
         self.messages: list[dict[str, Any]] = messages or [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": config.prompts.system},
         ]
 
     def reset(self) -> None:
-        self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        self.messages = [{"role": "system", "content": self.config.prompts.system}]
 
     async def _emit(self, on_event: EventCallback | None, event: dict[str, Any]) -> None:
         if on_event is None:

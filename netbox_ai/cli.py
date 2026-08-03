@@ -14,7 +14,7 @@ from .config import load_config
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.option("--config", "config_path", type=click.Path(exists=False, dir_okay=False), help="YAML 配置文件路径")
 @click.option("--ai-base-url", help="AI 接口地址，如 https://api.openai.com/v1")
-@click.option("--ai-api-key", help="AI API Key（也可在网页设置中填写）")
+@click.option("--ai-api-key", help="AI API Key（建议写在 .env / config.yaml）")
 @click.option("--ai-model", help="模型名，如 gpt-4o-mini / deepseek-chat")
 @click.option("--mcp-url", help="NetBox MCP 地址，如 http://127.0.0.1:8000/mcp")
 @click.option("--mcp-token", default=None, help="MCP Bearer Token（可选）")
@@ -32,6 +32,8 @@ def main(
     port: int,
 ) -> None:
     """启动 NetBox AI Web 界面。
+
+    连接与提示词请在 .env / config.yaml / prompts/ 中配置。
 
     示例：
 

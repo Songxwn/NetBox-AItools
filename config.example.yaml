@@ -1,4 +1,4 @@
-# 复制为 config.yaml 后按需修改，也可用环境变量 / CLI 参数覆盖
+# 复制为 config.yaml 后按需修改（网页不再提供连接设置）
 
 ai:
   base_url: https://api.openai.com/v1
@@ -12,12 +12,30 @@ mcp:
   url: http://127.0.0.1:8000/mcp
   # 可选：MCP HTTP Bearer Token（对应服务端 MCP_AUTH_TOKEN）
   token: ""
-  # 连接/读超时（秒）
   timeout: 30
   sse_read_timeout: 300
 
 agent:
-  # 单轮问答最多工具调用轮次，防止死循环
   max_tool_rounds: 8
-  # 是否在终端打印工具调用过程
-  verbose: true
+  verbose: false
+
+# 提示词：用于约束模型行为，并格式化用户输入
+prompts:
+  # 系统提示词（也可改用 system_file 指向外部文件）
+  system: |
+    你是 NetBox 基础设施助手，通过 MCP 工具查询 NetBox 中的真实数据。
+    规则：
+    1. 优先使用 MCP 工具获取事实，不要编造数据。
+    2. 查询时尽量加过滤条件，必要时使用 fields 控制返回字段。
+    3. 用简洁中文回答，结构化呈现关键信息。
+
+  # 用户消息模板，必须包含 {message}（用户原文会替换进去）
+  # 也可改用 user_template_file: prompts/user_template.txt
+  user_template: |
+    请根据以下用户需求查询 NetBox，并按「结论 → 关键明细 → 补充说明」输出：
+
+    【用户需求】
+    {message}
+
+  # system_file: prompts/system.txt
+  # user_template_file: prompts/user_template.txt
