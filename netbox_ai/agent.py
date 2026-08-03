@@ -9,8 +9,6 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from rich.console import Console
-from rich.markdown import Markdown
-from rich.panel import Panel
 
 from .config import AppConfig
 from .llm import LLMClient
@@ -64,7 +62,6 @@ class NetBoxAgent:
     ) -> str:
         self.messages.append({"role": "user", "content": question})
         tools = self.mcp.openai_tools()
-        verbose = self.config.agent.verbose
 
         for round_idx in range(1, self.config.agent.max_tool_rounds + 1):
             await self._emit(
@@ -96,14 +93,7 @@ class NetBoxAgent:
             if not tool_calls:
                 answer = (message.content or "").strip()
                 await self._emit(on_event, {"type": "answer", "content": answer})
-                if verbose and self.console is not None:
-                    self.console.print(Panel(Markdown(answer or "(空回复)"), title="回答"))
                 return answer
-
-            if verbose:
-                self.console.print(
-                    f"[dim]第 {round_idx} 轮工具调用：{len(tool_calls)} 个[/dim]"
-                )
 
             await self._emit(
                 on_event,
@@ -131,8 +121,6 @@ class NetBoxAgent:
                             "error": result_text,
                         },
                     )
-                    if verbose:
-                        self.console.print(f"[red]✗ {name}[/red] {result_text}")
                 else:
                     await self._emit(
                         on_event,
@@ -142,11 +130,6 @@ class NetBoxAgent:
                             "arguments": arguments,
                         },
                     )
-                    if verbose:
-                        self.console.print(
-                            f"[cyan]→ 调用[/cyan] {name} "
-                            f"[dim]{json.dumps(arguments, ensure_ascii=False)}[/dim]"
-                        )
                     try:
                         result_text = await self.mcp.call_tool(name, arguments)
                     except Exception as exc:
@@ -162,8 +145,6 @@ class NetBoxAgent:
                             "preview": preview,
                         },
                     )
-                    if verbose:
-                        self.console.print(f"[green]← 结果[/green]\n{preview[:800]}")
 
                 self.messages.append(
                     {
@@ -178,71 +159,4 @@ class NetBoxAgent:
             "请缩小问题范围，或提高 agent.max_tool_rounds。"
         )
         await self._emit(on_event, {"type": "answer", "content": final})
-        if verbose:
-            self.console.print(f"[yellow]{final}[/yellow]")
         return final
-
-
-async def run_query(
-    config: AppConfig,
-    question: str,
-    *,
-    console: Console | None = None,
-) -> str:
-    console = console or Console()
-    async with MCPClient(config.mcp) as mcp:
-        if config.agent.verbose:
-            names = ", ".join(t["name"] for t in mcp.tools) or "(无)"
-            console.print(f"[dim]已连接 MCP: {config.mcp.url}[/dim]")
-            console.print(f"[dim]可用工具: {names}[/dim]")
-            console.print(f"[dim]AI: {config.ai.base_url} / {config.ai.model}[/dim]")
-        agent = NetBoxAgent(config, mcp, LLMClient(config.ai), console=console)
-        return await agent.ask(question)
-
-
-async def run_repl(
-    config: AppConfig,
-    *,
-    console: Console | None = None,
-    input_fn: Callable[[str], str] | None = None,
-) -> None:
-    console = console or Console()
-    ask_input = input_fn or input
-
-    async with MCPClient(config.mcp) as mcp:
-        names = ", ".join(t["name"] for t in mcp.tools) or "(无)"
-        console.print(
-            Panel.fit(
-                f"MCP: {config.mcp.url}\n"
-                f"AI:  {config.ai.base_url}\n"
-                f"模型: {config.ai.model}\n"
-                f"工具: {names}\n\n"
-                "输入自然语言问题查询 NetBox；输入 /exit 退出，/reset 清空对话。",
-                title="NetBox AI 查询",
-            )
-        )
-        agent = NetBoxAgent(config, mcp, LLMClient(config.ai), console=console)
-
-        while True:
-            try:
-                question = ask_input("\n你> ").strip()
-            except (EOFError, KeyboardInterrupt):
-                console.print("\n再见。")
-                break
-
-            if not question:
-                continue
-            if question.lower() in {"/exit", "/quit", "exit", "quit"}:
-                console.print("再见。")
-                break
-            if question.lower() in {"/reset", "reset"}:
-                agent.reset()
-                console.print("[dim]对话已重置。[/dim]")
-                continue
-            if question.lower() in {"/tools", "tools"}:
-                await mcp.refresh_tools()
-                for t in mcp.tools:
-                    console.print(f"- [bold]{t['name']}[/bold]: {t['description']}")
-                continue
-
-            await agent.ask(question)

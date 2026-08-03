@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""启动入口：python run.py --web"""
+"""启动 Web 服务：python run.py"""
 
 from netbox_ai.cli import main
 
