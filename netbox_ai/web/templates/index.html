@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NetBox AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <div class="app">
+    <header class="top">
+      <div class="brand-block">
+        <div class="brand">NetBox AI</div>
+        <p class="tagline">用自然语言查询基础设施真相源</p>
+      </div>
+      <div class="top-actions">
+        <span id="mcpBadge" class="badge">MCP · 未连接</span>
+        <button type="button" id="btnSettings" class="btn ghost">连接设置</button>
+        <button type="button" id="btnReset" class="btn ghost">新对话</button>
+      </div>
+    </header>
+
+    <main class="stage">
+      <section id="welcome" class="welcome">
+        <h1>问 NetBox 任何事</h1>
+        <p>例如站点设备清单、IP 利用率、变更审计。回答来自 MCP 实时查询，而非模型臆造。</p>
+        <div class="suggestions" id="suggestions">
+          <button type="button" data-q="列出所有站点">列出所有站点</button>
+          <button type="button" data-q="最近一周有哪些变更记录？">最近一周变更</button>
+          <button type="button" data-q="统计各站点的设备数量">各站点设备数量</button>
+        </div>
+      </section>
+
+      <div id="messages" class="messages" hidden></div>
+    </main>
+
+    <footer class="composer">
+      <form id="chatForm" class="composer-form">
+        <textarea id="input" rows="1" placeholder="用自然语言描述你要查的 NetBox 信息…" autocomplete="off"></textarea>
+        <button type="submit" id="btnSend" class="btn primary">发送</button>
+      </form>
+      <div class="meta-line">
+        <span id="modelHint">模型未配置</span>
+        <span class="sep">·</span>
+        <span>v{{ version }}</span>
+      </div>
+    </footer>
+  </div>
+
+  <aside id="settingsPanel" class="drawer" hidden>
+    <div class="drawer-backdrop" id="drawerBackdrop"></div>
+    <div class="drawer-panel" role="dialog" aria-labelledby="settingsTitle">
+      <header class="drawer-head">
+        <h2 id="settingsTitle">连接设置</h2>
+        <button type="button" id="btnCloseSettings" class="btn ghost">关闭</button>
+      </header>
+      <form id="settingsForm" class="settings-form">
+        <fieldset>
+          <legend>AI 接口</legend>
+          <label>Base URL
+            <input name="ai_base_url" placeholder="https://api.openai.com/v1" />
+          </label>
+          <label>API Key
+            <input name="ai_api_key" type="password" placeholder="留空则保持原值" autocomplete="off" />
+          </label>
+          <label>模型
+            <input name="ai_model" placeholder="gpt-4o-mini" />
+          </label>
+          <div class="row2">
+            <label>温度
+              <input name="temperature" type="number" min="0" max="2" step="0.1" />
+            </label>
+            <label>最大 Token
+              <input name="max_tokens" type="number" min="256" step="256" />
+            </label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>NetBox MCP</legend>
+          <label>MCP URL
+            <input name="mcp_url" placeholder="http://127.0.0.1:8000/mcp" />
+          </label>
+          <label>MCP Token（可选）
+            <input name="mcp_token" type="password" placeholder="留空则保持原值；填空格后保存可清空" autocomplete="off" />
+          </label>
+          <label>最大工具轮次
+            <input name="max_tool_rounds" type="number" min="1" max="30" />
+          </label>
+        </fieldset>
+        <p id="settingsStatus" class="settings-status"></p>
+        <div class="drawer-actions">
+          <button type="button" id="btnReconnect" class="btn ghost">仅重连 MCP</button>
+          <button type="submit" class="btn primary">保存并连接</button>
+        </div>
+      </form>
+    </div>
+  </aside>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
