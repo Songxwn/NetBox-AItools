@@ -49,13 +49,13 @@ def main(
 
     网页模式：
 
-      netbox-ai --web
+      python run.py --web
 
-      netbox-ai --web --host 0.0.0.0 --port 8080
+      python run.py --web --host 0.0.0.0 --port 8080
 
     命令行模式：
 
-      netbox-ai -q "列出所有站点"
+      python run.py -q "列出所有站点"
     """
     console = Console(stderr=True)
     try:
