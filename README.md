@@ -42,7 +42,6 @@ python -m venv .venv
 # source .venv/bin/activate
 
 pip install -r requirements.txt
-pip install -e .
 ```
 
 若出现 `No matching distribution found for mcp`，多半是镜像未同步。可改用官方源：
@@ -55,14 +54,19 @@ pip install -r requirements.txt -i https://pypi.org/simple
 
 ## 配置
 
-复制模板：
+复制模板并编辑：
 
 ```bash
+# Windows
 copy .env.example .env
-copy config.example.yaml config.yaml
+
+# Linux / macOS
+# cp .env.example .env
 ```
 
-优先级：**CLI 参数 > 环境变量 > config.yaml > 默认值**（Web 页面保存的设置仅作用于当前进程内存）
+也可复制 `config.example.yaml` 为 `config.yaml`。
+
+优先级：**命令行参数 > 环境变量 > config.yaml > 默认值**（Web 页面保存的设置仅作用于当前进程内存）
 
 | 配置项 | 环境变量 | 说明 |
 |--------|----------|------|
@@ -72,14 +76,20 @@ copy config.example.yaml config.yaml
 | MCP 地址 | `MCP_URL` | 如 `http://127.0.0.1:8000/mcp` |
 | MCP Token | `MCP_TOKEN` | 对应服务端 `MCP_AUTH_TOKEN`（可选） |
 
-## Web 使用（推荐）
+## 运行（Web，推荐）
+
+在项目根目录执行：
 
 ```bash
-netbox-ai --web
-# 浏览器打开 http://127.0.0.1:8080
+python run.py --web
+```
 
-# 局域网访问
-netbox-ai --web --host 0.0.0.0 --port 8080
+浏览器打开：http://127.0.0.1:8080
+
+局域网访问：
+
+```bash
+python run.py --web --host 0.0.0.0 --port 8080
 ```
 
 打开页面后：
@@ -88,37 +98,48 @@ netbox-ai --web --host 0.0.0.0 --port 8080
 2. 保存并连接  
 3. 直接用自然语言提问，例如「列出所有站点」
 
-## 命令行使用
+## 运行（命令行）
 
 ```bash
-netbox-ai -q "列出所有站点"
-netbox-ai -q "Equinix DC14 站点有哪些设备？"
-netbox-ai
+python run.py -q "列出所有站点"
+python run.py -q "Equinix DC14 站点有哪些设备？"
+python run.py
 ```
 
 自定义 AI 与 MCP：
 
 ```bash
-netbox-ai --web ^
-  --ai-base-url http://127.0.0.1:11434/v1 ^
-  --ai-api-key ollama ^
-  --ai-model qwen2.5 ^
+# Windows
+python run.py --web --ai-base-url http://127.0.0.1:11434/v1 --ai-api-key ollama --ai-model qwen2.5 --mcp-url http://127.0.0.1:8000/mcp
+
+# Linux / macOS
+python run.py --web \
+  --ai-base-url http://127.0.0.1:11434/v1 \
+  --ai-api-key ollama \
+  --ai-model qwen2.5 \
   --mcp-url http://127.0.0.1:8000/mcp
+```
+
+等价写法：
+
+```bash
+python -m netbox_ai --web
 ```
 
 ## 项目结构
 
 ```text
+run.py                 # 启动脚本（python run.py ...）
 netbox_ai/
-  cli.py           # 命令行 / Web 启动入口
-  config.py        # 配置合并
-  mcp_client.py    # MCP Streamable HTTP 客户端
-  llm.py           # OpenAI 兼容客户端
-  agent.py         # 自然语言 → 工具调用 → 回答
+  cli.py               # 命令行 / Web 参数入口
+  config.py            # 配置合并
+  mcp_client.py        # MCP Streamable HTTP 客户端
+  llm.py               # OpenAI 兼容客户端
+  agent.py             # 自然语言 → 工具调用 → 回答
   web/
-    app.py         # FastAPI 服务
-    templates/     # 网页模板
-    static/        # 样式与前端脚本
+    app.py             # FastAPI 服务
+    templates/         # 网页模板
+    static/            # 样式与前端脚本
 ```
 
 ## 常见问题
