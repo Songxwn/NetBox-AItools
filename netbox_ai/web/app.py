@@ -104,13 +104,6 @@ def create_app(config: AppConfig | None = None) -> FastAPI:
     app.state.runtime = state
     app.mount("/static", StaticFiles(directory=str(WEB_DIR / "static")), name="static")
 
-    @app.on_event("startup")
-    async def _startup() -> None:
-        try:
-            await state.ensure_mcp()
-        except Exception:
-            pass
-
     @app.on_event("shutdown")
     async def _shutdown() -> None:
         await state.close()
