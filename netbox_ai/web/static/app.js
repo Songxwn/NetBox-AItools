@@ -83,6 +83,7 @@
 
     const thinking = appendMessage("assistant", "正在查询…", "thinking");
     thinking.querySelector(".label")?.remove();
+    let finished = false;
 
     try {
       const res = await fetch("/api/chat", {
@@ -93,7 +94,15 @@
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || `请求失败 (${res.status})`);
+        const detail = err.detail;
+        const msg = Array.isArray(detail)
+          ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+          : detail || `请求失败 (${res.status})`;
+        throw new Error(msg);
+      }
+
+      if (!res.body) {
+        throw new Error("服务器未返回数据流");
       }
 
       const reader = res.body.getReader();
@@ -110,12 +119,25 @@
         for (const chunk of chunks) {
           const line = chunk.split("\n").find((l) => l.startsWith("data: "));
           if (!line) continue;
-          const event = JSON.parse(line.slice(6));
+          let event;
+          try {
+            event = JSON.parse(line.slice(6));
+          } catch (e) {
+            console.warn("SSE JSON 解析失败", line, e);
+            continue;
+          }
+          if (event.type === "answer" || event.type === "done" || event.type === "error") {
+            finished = true;
+          }
           handleEvent(event, thinking);
         }
       }
+
+      if (!finished) {
+        throw new Error("对话中断：未收到完整回答（请查看服务端日志，确认 MCP/AI 是否可用）");
+      }
     } catch (err) {
-      thinking.remove();
+      if (thinking.isConnected) thinking.remove();
       appendMessage("assistant", String(err.message || err), "error");
     } finally {
       if (thinking.isConnected && thinking.classList.contains("thinking")) {

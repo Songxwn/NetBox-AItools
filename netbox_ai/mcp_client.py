@@ -165,6 +165,19 @@ class MCPClient:
                 "type": "object",
                 "properties": {},
             }
+            # 确保是纯 JSON 可序列化 dict（部分 SDK 可能返回特殊对象）
+            if hasattr(parameters, "model_dump"):
+                parameters = parameters.model_dump(by_alias=True, exclude_none=True)
+            elif not isinstance(parameters, dict):
+                try:
+                    parameters = json.loads(json.dumps(parameters, default=str))
+                except Exception:
+                    parameters = {"type": "object", "properties": {}}
+            if not isinstance(parameters, dict):
+                parameters = {"type": "object", "properties": {}}
+            if "type" not in parameters:
+                parameters = {"type": "object", "properties": parameters}
+
             converted.append(
                 {
                     "type": "function",

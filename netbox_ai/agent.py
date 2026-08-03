@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -13,6 +14,8 @@ from rich.console import Console
 from .config import AppConfig
 from .llm import LLMClient
 from .mcp_client import MCPClient
+
+logger = logging.getLogger("netbox_ai.agent")
 
 EventCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
 
@@ -52,15 +55,29 @@ class NetBoxAgent:
     ) -> str:
         self.messages.append({"role": "user", "content": question})
         tools = self.mcp.openai_tools()
+        logger.info("开始推理，历史消息=%d，工具=%d", len(self.messages), len(tools))
 
         for round_idx in range(1, self.config.agent.max_tool_rounds + 1):
             await self._emit(
                 on_event,
                 {"type": "status", "message": f"思考中（第 {round_idx} 轮）…"},
             )
-            response = await asyncio.to_thread(self.llm.chat, self.messages, tools or None)
+            try:
+                response = await asyncio.to_thread(
+                    self.llm.chat, self.messages, tools or None
+                )
+            except Exception as exc:
+                logger.exception("调用 AI 失败")
+                raise RuntimeError(f"调用 AI 失败: {exc}") from exc
+
             message = response.choices[0].message
             tool_calls = message.tool_calls or []
+            logger.info(
+                "第 %d 轮: tool_calls=%d content_len=%d",
+                round_idx,
+                len(tool_calls),
+                len(message.content or ""),
+            )
 
             assistant_msg: dict[str, Any] = {
                 "role": "assistant",
@@ -81,7 +98,7 @@ class NetBoxAgent:
             self.messages.append(assistant_msg)
 
             if not tool_calls:
-                answer = (message.content or "").strip()
+                answer = (message.content or "").strip() or "(模型返回空内容)"
                 await self._emit(on_event, {"type": "answer", "content": answer})
                 return answer
 
@@ -123,6 +140,7 @@ class NetBoxAgent:
                     try:
                         result_text = await self.mcp.call_tool(name, arguments)
                     except Exception as exc:
+                        logger.exception("工具调用失败: %s", name)
                         result_text = f"工具调用异常: {exc}"
                     preview = (
                         result_text if len(result_text) <= 1200 else result_text[:1200] + "…"
